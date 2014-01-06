@@ -11,7 +11,7 @@
   else { context[name] = definition(); }
 })('Fingerprint', this, function () {
   'use strict';
-  
+
   var Fingerprint = function (options) {
     var nativeForEach, nativeMap;
     nativeForEach = Array.prototype.forEach;
@@ -38,6 +38,7 @@
 
     this.map = function(obj, iterator, context) {
       var results = [];
+        console.log("Entered this.map()")
       // Not using strict equality so that this acts as a
       // shortcut to checking for `null` and `undefined`.
       if (obj == null) return results;
@@ -59,73 +60,87 @@
   };
 
   Fingerprint.prototype = {
-    get: function(){
-      var keys = [];
-      keys.push(navigator.userAgent);
-      keys.push(navigator.language);
-      keys.push(screen.colorDepth);
+	raw: function() {
+        console.log("Entered prototype.map()")
+	  var obj = {};
+      obj.userAgent = navigator.userAgent;
+      obj.language = navigator.language;
+      obj.colorDepth = screen.colorDepth;
       if (this.screen_resolution) {
         var resolution = this.getScreenResolution();
         if (typeof resolution !== 'undefined'){ // headless browsers, such as phantomjs
-          keys.push(this.getScreenResolution().join('x'));
+          obj.resolution = this.getScreenResolution().join('x');
         }
       }
-      keys.push(new Date().getTimezoneOffset());
-      keys.push(this.hasSessionStorage());
-      keys.push(this.hasLocalStorage());
-      keys.push(!!window.indexedDB);
+      obj.timezone = new Date().getTimezoneOffset();
+      obj.sessionStorage = this.hasSessionStorage();
+      obj.localStorage = this.hasLocalStorage();
+      obj.indexedDB = !!window.indexedDB;
       //body might not be defined at this point or removed programmatically
-      if(document.body){
-        keys.push(typeof(document.body.addBehavior));
-      } else {
-        keys.push(typeof undefined);
-      }
-      keys.push(typeof(window.openDatabase));
-      keys.push(navigator.cpuClass);
-      keys.push(navigator.platform);
-      keys.push(navigator.doNotTrack);
-      keys.push(this.getPluginsString());
+      obj.behaviour = (document.body ? typeof(document.body.addBehavior):typeof undefined);
+      obj.openDatabase = typeof(window.openDatabase);
+      obj.cpuClass = navigator.cpuClass;
+      obj.platform = navigator.platform;
+      obj.doNotTrack = navigator.doNotTrack;
+      obj.plugins = this.getPluginsString();
       if(this.canvas && this.isCanvasSupported()){
-        keys.push(this.getCanvasFingerprint());
+          obj.canvasFP = this.getCanvasFingerprint();
       }
+
+	  return obj;
+	},
+	getJSON: function() {
+		var obj = this.raw();
+        console.log(obj);
+		return JSON.stringify(obj);
+	},
+    get: function(){
+
+	  var obj = this.raw(),
+          values = [];
+
+      for(var key in obj) {
+          values.push(obj[key])
+      }
+
       if(this.hasher){
-        return this.hasher(keys.join('###'), 31);
+        return this.hasher(values.join('###'), 31);
       } else {
-        return this.murmurhash3_32_gc(keys.join('###'), 31);
+        return this.murmurhash3_32_gc(values.join('###'), 31);
       }
     },
 
     /**
      * JS Implementation of MurmurHash3 (r136) (as of May 20, 2011)
-     * 
+     *
      * @author <a href="mailto:gary.court@gmail.com">Gary Court</a>
      * @see http://github.com/garycourt/murmurhash-js
      * @author <a href="mailto:aappleby@gmail.com">Austin Appleby</a>
      * @see http://sites.google.com/site/murmurhash/
-     * 
+     *
      * @param {string} key ASCII only
      * @param {number} seed Positive integer only
-     * @return {number} 32-bit positive integer hash 
+     * @return {number} 32-bit positive integer hash
      */
 
     murmurhash3_32_gc: function(key, seed) {
       var remainder, bytes, h1, h1b, c1, c2, k1, i;
-      
+
       remainder = key.length & 3; // key.length % 4
       bytes = key.length - remainder;
       h1 = seed;
       c1 = 0xcc9e2d51;
       c2 = 0x1b873593;
       i = 0;
-      
+
       while (i < bytes) {
-          k1 = 
+          k1 =
             ((key.charCodeAt(i) & 0xff)) |
             ((key.charCodeAt(++i) & 0xff) << 8) |
             ((key.charCodeAt(++i) & 0xff) << 16) |
             ((key.charCodeAt(++i) & 0xff) << 24);
         ++i;
-        
+
         k1 = ((((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16))) & 0xffffffff;
         k1 = (k1 << 15) | (k1 >>> 17);
         k1 = ((((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16))) & 0xffffffff;
@@ -135,20 +150,20 @@
         h1b = ((((h1 & 0xffff) * 5) + ((((h1 >>> 16) * 5) & 0xffff) << 16))) & 0xffffffff;
         h1 = (((h1b & 0xffff) + 0x6b64) + ((((h1b >>> 16) + 0xe654) & 0xffff) << 16));
       }
-      
+
       k1 = 0;
-      
+
       switch (remainder) {
         case 3: k1 ^= (key.charCodeAt(i + 2) & 0xff) << 16;
         case 2: k1 ^= (key.charCodeAt(i + 1) & 0xff) << 8;
         case 1: k1 ^= (key.charCodeAt(i) & 0xff);
-        
+
         k1 = (((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16)) & 0xffffffff;
         k1 = (k1 << 15) | (k1 >>> 17);
         k1 = (((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16)) & 0xffffffff;
         h1 ^= k1;
       }
-      
+
       h1 ^= key.length;
 
       h1 ^= h1 >>> 16;
@@ -168,7 +183,7 @@
         return true; // SecurityError when referencing it means it exists
       }
     },
-    
+
     hasSessionStorage: function () {
       try{
         return !!scope.sessionStorage;
